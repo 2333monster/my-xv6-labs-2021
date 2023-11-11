@@ -140,6 +140,8 @@ found:
   memset(&p->context, 0, sizeof(p->context));
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
+  // Zero initializes the tracemask for a new process.
+  p->tracemask = 0;
 
   return p;
 }
@@ -164,6 +166,21 @@ freeproc(struct proc *p)
   p->killed = 0;
   p->xstate = 0;
   p->state = UNUSED;
+}
+
+
+uint64
+count_free_proc(void){
+  int n = 0;
+  struct proc *p;
+  for(p = proc; p < &proc[NPROC]; p++) {
+    acquire(&p->lock);
+    if(p->state == UNUSED){
+      n +=1 ;
+    }
+    release(&p->lock);
+  }
+  return n;
 }
 
 // Create a user page table for a given process,
@@ -313,6 +330,11 @@ fork(void)
 
   acquire(&np->lock);
   np->state = RUNNABLE;
+  release(&np->lock);
+
+  // inherit parent's trace mask << fork出的新进程继承父进程的bit mask
+  acquire(&np->lock);
+  np->tracemask = p->tracemask;
   release(&np->lock);
 
   return pid;
